@@ -7,6 +7,8 @@ import getCloudFrontInstance from './cloudfront/getCloudFrontInstance';
 import getCloudFrontParams from './cloudfront/getCloudFrontParams';
 import logger from './utils/logger';
 
+const validRegex: RegExp = /\/(.*)\/([a-z]*)/g;
+
 const argv = getArgv();
 if (!validateArgv(argv)) {
   logger.error('Missing Required Argument(s)');
@@ -21,7 +23,7 @@ if (parsedArgv.isPR) {
   process.exit(0);
 }
 
-if (parsedArgv.branches.indexOf(parsedArgv.travisBranch.trim()) === -1) {
+if (!isValidBranch(parsedArgv.branches, parsedArgv.travisBranch)) {
   logger.info(
     'Travis CI not running on ' +
       parsedArgv.travisBranch +
@@ -47,3 +49,22 @@ cloudFront
     logger.error('Error invalidating CloudFront Cache: ' + JSON.stringify(err));
     process.exit(1);
   });
+
+function isValidBranch(branches: string[], currentBranch: string) {
+  if (branches.indexOf(currentBranch.trim()) === -1) {
+    // No exact plain text match
+    // There might be a branch defined as a regexp
+    const regexBranches: string[] = branches.filter((branch) => validRegex.test(branch[0]));
+    for (let i = 0; i < regexBranches.length; i++) {
+      const matchArray = validRegex.exec(regexBranches[i]);
+      if (matchArray) {
+        if (new RegExp(matchArray[1], matchArray[2]).test(currentBranch)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  } else {
+    return true;
+  }
+}
